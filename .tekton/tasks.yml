@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+    set -eu
+    echo "Suppression de tous les fichiers de ${WORKSPACE_SOURCE_PATH} ..."
+    # Supprimer tout contenu existant du répertoire s'il existe.
+    python -m pip install --upgrade pip wheel
+    pip install -r requirements.txt
+    nosetests $(params.args)
+    # Nous ne faisons pas simplement "rm -rf ${WORKSPACE_SOURCE_PATH}" car ${WORKSPACE_SOURCE_PATH} pourrait être "/"
+    # ou la racine d'un volume monté.
+    if [ -d "${WORKSPACE_SOURCE_PATH}" ] ; then
+      # Supprimer les fichiers et répertoires non cachés
+      rm -rf "${WORKSPACE_SOURCE_PATH:?}"/*
+      # Supprimer les fichiers et répertoires commençant par . mais excluant ..
+      rm -rf "${WORKSPACE_SOURCE_PATH}"/.[!.]*
+      # Supprimer les fichiers et répertoires commençant par .. plus tout autre caractère
+      rm -rf "${WORKSPACE_SOURCE_PATH}"/..?*
+    fi
