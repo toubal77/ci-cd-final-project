@@ -6,7 +6,11 @@ metadata:
 spec:
   description: This task will clean up a workspace by deleting all the files.
   workspaces:
-    - name: remove
+    - name: source
+  params:
+    - name: args
+      type: string
+      default: ""
   steps:
     - name: remove
       image: alpine:3
@@ -15,23 +19,39 @@ spec:
           value: $(workspaces.source.path)
       workingDir: $(workspaces.source.path)
       securityContext:
-        runAsNonRoot: true
+        runAsNonRoot: false
+        runAsUser: 0
+      script: |
+        #!/bin/sh
+        echo "Removing files from workspace at ${WORKSPACE_SOURCE_PATH}"
+        rm -rf ${WORKSPACE_SOURCE_PATH}/*
+
+    - name: safe-remove
+      image: alpine:3
+      env:
+        - name: WORKSPACE_SOURCE_PATH
+          value: $(workspaces.source.path)
+      workingDir: $(workspaces.source.path)
+      securityContext:
+        runAsNonRoot: false
         runAsUser: 0
       script: |
         #!/usr/bin/env sh
         set -eu
-        echo "Suppression de tous les fichiers de ${WORKSPACE_SOURCE_PATH} ..."
-        # Supprimer tout contenu existant du répertoire s'il existe.
+        echo "Removing all files from ${WORKSPACE_SOURCE_PATH} ..."
+        if [ -d "${WORKSPACE_SOURCE_PATH}" ] ; then
+          rm -rf "${WORKSPACE_SOURCE_PATH:?}"/*
+          rm -rf "${WORKSPACE_SOURCE_PATH}"/.[!.]*
+          rm -rf "${WORKSPACE_SOURCE_PATH}"/..?*
+        fi
+
+    - name: nosetests
+      image: python:3.9-slim
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/bin/sh
+        set -e
         python -m pip install --upgrade pip wheel
         pip install -r requirements.txt
         nosetests $(params.args)
-        # Nous ne faisons pas simplement "rm -rf ${WORKSPACE_SOURCE_PATH}" car ${WORKSPACE_SOURCE_PATH} pourrait être "/"
-        # ou la racine d'un volume monté.
-        if [ -d "${WORKSPACE_SOURCE_PATH}" ] ; then
-          # Supprimer les fichiers et répertoires non cachés
-          rm -rf "${WORKSPACE_SOURCE_PATH:?}"/*
-          # Supprimer les fichiers et répertoires commençant par . mais excluant ..
-          rm -rf "${WORKSPACE_SOURCE_PATH}"/.[!.]*
-          # Supprimer les fichiers et répertoires commençant par .. plus tout autre caractère
-          rm -rf "${WORKSPACE_SOURCE_PATH}"/..?*
-        fi
+
